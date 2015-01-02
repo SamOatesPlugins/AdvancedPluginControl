@@ -1,0 +1,10 @@
+name: AdvancedPluginControl
+main: com.samoatesgames.advancedplugincontrol.AdvancedPluginControl
+version: 1.0
+authors: [SamOatesPlugins]
+description: A plugin management plugin.
+
+commands:
+    plugin:
+        description: Main command for the plugin
+        usage: /<command>
