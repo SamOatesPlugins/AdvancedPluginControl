@@ -1,7 +1,6 @@
 package com.samoatesgames.advancedplugincontrol.command;
 
 import com.samoatesgames.samoatesplugincore.commands.BasicCommandHandler;
-import com.samoatesgames.samoatesplugincore.commands.ICommandHandler;
 import com.samoatesgames.samoatesplugincore.commands.PluginCommandManager;
 import java.io.BufferedReader;
 import java.io.File;
@@ -24,10 +23,13 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.command.SimpleCommandMap;
+import org.bukkit.plugin.InvalidDescriptionException;
+import org.bukkit.plugin.InvalidPluginException;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.SimplePluginManager;
+import org.bukkit.plugin.UnknownDependencyException;
 
 /**
  *
@@ -157,6 +159,8 @@ public class PluginCommandHandler extends BasicCommandHandler {
     }
 
     private void cachePluginDetails() {
+        
+        m_pluginDetailsCache.clear();        
         PluginManager pluginManager = Bukkit.getServer().getPluginManager();
         Plugin[] plugins = pluginManager.getPlugins();
         for (Plugin plugin : plugins) {
@@ -266,7 +270,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
             Field commandMapField = simplePluginManager.getClass().getDeclaredField("commandMap");
             commandMapField.setAccessible(true);
             SimpleCommandMap commandMap = (SimpleCommandMap) commandMapField.get(simplePluginManager);
-            Field knownCommandsField = null;
+            Field knownCommandsField;
             Map<String, Command> knownCommands = null;
             if (commandMap != null) {
                 knownCommandsField = commandMap.getClass().getDeclaredField("knownCommands");
@@ -280,7 +284,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
             if (lookupNames != null && lookupNames.containsKey(pluginName)) {
                 lookupNames.remove(pluginName);
             }
-            if (commandMap != null) {
+            if (commandMap != null && knownCommands != null) {
                 for (Iterator<Map.Entry<String, Command>> it = knownCommands.entrySet().iterator(); it.hasNext();) {
                     Map.Entry<String, Command> entry = it.next();
                     if (entry.getValue() instanceof PluginCommand) {
@@ -292,7 +296,16 @@ public class PluginCommandHandler extends BasicCommandHandler {
                     }
                 }
             }
-        } catch (Exception ex) {
+        } catch (NoSuchFieldException ex) {
+            manager.sendMessage(player, "Failed to query plugin manager, could not unload plugin.");
+            return true;
+        } catch (SecurityException ex) {
+            manager.sendMessage(player, "Failed to query plugin manager, could not unload plugin.");
+            return true;
+        } catch (IllegalArgumentException ex) {
+            manager.sendMessage(player, "Failed to query plugin manager, could not unload plugin.");
+            return true;
+        } catch (IllegalAccessException ex) {
             manager.sendMessage(player, "Failed to query plugin manager, could not unload plugin.");
             return true;
         }
@@ -353,9 +366,13 @@ public class PluginCommandHandler extends BasicCommandHandler {
         Plugin plugin = null;
         try {
             plugin = pluginManager.loadPlugin(pluginFile);
-        } catch (Exception e) {
+        } catch (InvalidPluginException e) {
+            plugin = null;
+        } catch (InvalidDescriptionException e) {
             // Something went wrong so set the plugin to null
-            e.printStackTrace();
+            plugin = null;
+        } catch (UnknownDependencyException e) {
+            // Something went wrong so set the plugin to null
             plugin = null;
         }
         if (plugin == null) {
