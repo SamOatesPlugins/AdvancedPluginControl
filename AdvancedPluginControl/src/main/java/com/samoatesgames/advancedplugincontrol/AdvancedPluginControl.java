@@ -39,6 +39,13 @@ public final class AdvancedPluginControl extends SamOatesPlugin {
     }
     
     /**
+     * Register all configuration settings
+     */
+    public void setupConfigurationSettings() {
+
+    }
+    
+    /**
      * Called when the plugin is disabled
      */
     @Override
