@@ -1,19 +1,10 @@
 package com.samoatesgames.advancedplugincontrol.command;
 
+import com.samoatesgames.advancedplugincontrol.AdvancedPluginControl;
 import com.samoatesgames.samoatesplugincore.commands.BasicCommandHandler;
 import com.samoatesgames.samoatesplugincore.commands.PluginCommandManager;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -38,16 +29,18 @@ import org.bukkit.plugin.UnknownDependencyException;
 public class PluginCommandHandler extends BasicCommandHandler {
 
     /**
-    * Plugin description cache as short urls take time to generate.
-    */
-    List<String> m_pluginDetailsCache = new ArrayList<String>();
-
+     * 
+     */
+    private AdvancedPluginControl m_plugin = null;
+    
     /**
      * Class constructor
+     * @param plugin
      */
-    public PluginCommandHandler() {
+    public PluginCommandHandler(AdvancedPluginControl plugin) {
         super("advancedpluginmanager.command.plugin.admin");
-        cachePluginDetails();
+        m_plugin = plugin;
+        m_plugin.cachePluginDetails();
     }
     
     /**
@@ -122,81 +115,16 @@ public class PluginCommandHandler extends BasicCommandHandler {
     }
 
     /**
-     * Shorten of web url using googles url shortening api
-     * @param longUrl
-     * @return
-     */
-    private String shortenURL(String longUrl) {
-        String googUrl = "https://www.googleapis.com/urlshortener/v1/url?shortUrl=http://goo.gl/fbsS&key=AIzaSyA1fQnseCFv6vWOefIcNe7XL8lVOV7YVbU";
-        String shortUrl = "";
-        try {
-            URLConnection conn = new URL(googUrl).openConnection();
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "application/json");
-            OutputStreamWriter wr = new OutputStreamWriter(conn.getOutputStream());
-            wr.write("{\"longUrl\":\"" + longUrl + "\"}");
-            wr.flush();
-            
-            // Get the response
-            BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            String line;
-            while ((line = rd.readLine()) != null) {
-                if (line.contains("id")) {
-                    // I'm sure there's a more elegant way of parsing
-                    // the JSON response, but this is quick/dirty =)
-                    shortUrl = line.substring(8, line.length() - 2);
-                    break;
-                }
-            }
-            wr.close();
-            rd.close();
-        } catch (MalformedURLException ex) {
-            return null;
-        } catch (IOException ex) {
-            return null;
-        }
-        return shortUrl;
-    }
-
-    private void cachePluginDetails() {
-        
-        m_pluginDetailsCache.clear();        
-        PluginManager pluginManager = Bukkit.getServer().getPluginManager();
-        Plugin[] plugins = pluginManager.getPlugins();
-        for (Plugin plugin : plugins) {
-            PluginDescriptionFile discription = plugin.getDescription();
-            String url = null;
-            String pluginWebsite = discription.getWebsite();
-            if (pluginWebsite != null) {
-                url = shortenURL(pluginWebsite);
-            }
-            if (url == null) {
-                url = shortenURL("http://lmgtfy.com/?q=Bukkit+Plugin+" + plugin.getName().replaceAll(" ", "+"));
-            }
-            String shortVersion = discription.getVersion();
-            if (shortVersion.length() >= 9) {
-                shortVersion = shortVersion.substring(0, 6) + "...";
-            }
-            m_pluginDetailsCache.add(" • " + ChatColor.GOLD + plugin.getName() + " " + ChatColor.DARK_GREEN + "version " + shortVersion + ChatColor.BLUE + " " + url);
-        }
-        
-        Collections.sort(m_pluginDetailsCache, new Comparator<String>() {
-            @Override
-            public int compare(String t, String t1) {
-                return t.compareToIgnoreCase(t1);
-            }
-        });
-    }
-
-    /**
      *
      * @param sender
      */
     private void outputAllPluginsOverview(PluginCommandManager manager, CommandSender sender) {
-        if (m_pluginDetailsCache.isEmpty()) {
-            cachePluginDetails();
+        
+        List<String> pluginDetailsCache = m_plugin.getPluginDetailsCache();
+        if (pluginDetailsCache.isEmpty()) {
+            m_plugin.cachePluginDetails();
         }
-        for (String message : m_pluginDetailsCache) {
+        for (String message : pluginDetailsCache) {
             sender.sendMessage(message);
         }
     }
@@ -210,6 +138,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
             manager.sendMessage(player, "A plugin with the name '" + pluginName + "' could not be found.");
             return true;
         }
+
         PluginDescriptionFile discription = plugin.getDescription();
         String authors = "";
         List<String> authorsList = discription.getAuthors();
@@ -222,11 +151,16 @@ public class PluginCommandHandler extends BasicCommandHandler {
         } else {
             authors = "Unknown";
         }
+        
+        String key = "plugin." + m_plugin.pluginNameToKey(plugin.getName());
+        boolean showUrl = m_plugin.getSetting(key + ".webpage.url", true);
+        String url = m_plugin.getSetting(key + ".webpage.url", discription.getWebsite());
+        
         manager.sendMessage(player, ChatColor.GOLD + "||======================================||");
         manager.sendMessage(player, ChatColor.DARK_GREEN + "Name: " + ChatColor.WHITE + plugin.getName());
         manager.sendMessage(player, ChatColor.DARK_GREEN + "Version: " + ChatColor.WHITE + discription.getVersion());
         manager.sendMessage(player, ChatColor.DARK_GREEN + "Authors: " + ChatColor.WHITE + authors);
-        manager.sendMessage(player, ChatColor.DARK_GREEN + "Website: " + ChatColor.BLUE + shortenURL(discription.getWebsite()));
+        if (showUrl) { manager.sendMessage(player, ChatColor.DARK_GREEN + "Website: " + ChatColor.BLUE + url); }
         manager.sendMessage(player, ChatColor.DARK_GREEN + "Enabled: " + ChatColor.WHITE + (plugin.isEnabled() ? "True" : "False"));
         manager.sendMessage(player, ChatColor.GOLD + "||======================================||");
         return true;
@@ -244,7 +178,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
         }
         pluginManager.disablePlugin(plugin);
         manager.sendMessage(player, "The plugin '" + pluginName + "' was successfully disabled.");
-        cachePluginDetails();
+        m_plugin.cachePluginDetails();
         return true;
     }
 
@@ -311,7 +245,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
         }
         
         manager.sendMessage(player, "The plugin '" + pluginName + "' was successfully unloaded.");
-        cachePluginDetails();
+        m_plugin.cachePluginDetails();
         return true;
     }
 
@@ -327,7 +261,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
         }
         pluginManager.enablePlugin(plugin);
         manager.sendMessage(player, "The plugin '" + pluginName + "' was successfully enabled.");
-        cachePluginDetails();
+        m_plugin.cachePluginDetails();
         return true;
     }
 
@@ -344,7 +278,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
         pluginManager.disablePlugin(plugin);
         pluginManager.enablePlugin(plugin);
         manager.sendMessage(player, "The plugin '" + pluginName + "' was successfully reloaded.");
-        cachePluginDetails();
+        m_plugin.cachePluginDetails();
         return true;
     }
 
@@ -356,7 +290,17 @@ public class PluginCommandHandler extends BasicCommandHandler {
         // load and enable the given plugin
         File pluginFolder = manager.getPlugin().getDataFolder().getParentFile();
         File pluginFile = new File(pluginFolder + File.separator + pluginName);
-        if (!pluginFile.exists()) {
+        
+        boolean fileExists = false;
+        for (File actualPluginFile : pluginFolder.listFiles()) {
+            if (actualPluginFile.getAbsolutePath().equalsIgnoreCase(pluginFile.getAbsolutePath())) {
+                fileExists = true;
+                pluginFile = actualPluginFile;
+                break;
+            }
+        }
+                
+        if (!fileExists) {
             // plugin does not exist
             manager.sendMessage(player, "A plugin with the name '" + pluginName + "' could not be found at location:");
             manager.sendMessage(player, pluginFile.getAbsolutePath());
@@ -367,6 +311,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
         try {
             plugin = pluginManager.loadPlugin(pluginFile);
         } catch (InvalidPluginException e) {
+            // Something went wrong so set the plugin to null
             plugin = null;
         } catch (InvalidDescriptionException e) {
             // Something went wrong so set the plugin to null
@@ -383,7 +328,7 @@ public class PluginCommandHandler extends BasicCommandHandler {
         // plugin loaded and enabled successfully
         pluginManager.enablePlugin(plugin);
         manager.sendMessage(player, "The plugin '" + pluginName + "' has been succesfully loaded and enabled.");
-        cachePluginDetails();
+        m_plugin.cachePluginDetails();
         return true;
     }
 
