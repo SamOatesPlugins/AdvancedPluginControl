@@ -40,7 +40,7 @@ public final class AdvancedPluginControl extends SamOatesPlugin {
     /**
     * Plugin description cache as short urls take time to generate.
     */
-    List<String> m_pluginDetailsCache = new ArrayList<String>();
+    private List<String> m_pluginDetailsCache = new ArrayList<String>();
 
     /**
      * Class constructor
@@ -169,19 +169,23 @@ public final class AdvancedPluginControl extends SamOatesPlugin {
         PluginManager pluginManager = Bukkit.getServer().getPluginManager();
         Plugin[] plugins = pluginManager.getPlugins();
         for (Plugin plugin : plugins) {
-            PluginDescriptionFile discription = plugin.getDescription();
-            String shortVersion = discription.getVersion();
-            if (shortVersion.length() >= 9) {
-                shortVersion = shortVersion.substring(0, 6) + "...";
-            }
-            
-            String key = "plugin." + pluginNameToKey(plugin.getName());
-            boolean visible = this.getSetting(key + ".visible", true);
-            if (visible) {
-                String pluginName = this.getSetting(key + ".name", plugin.getName());
-                boolean showUrl = this.getSetting(key + ".webpage.show", true);
-                String url = this.getSetting(key + ".webpage.url", "http://www.google.com");
-                m_pluginDetailsCache.add(" • " + ChatColor.GOLD + pluginName + " " + ChatColor.DARK_GREEN + "version " + shortVersion + (showUrl ? (ChatColor.BLUE + " " + url) : ""));
+            try {
+                PluginDescriptionFile discription = plugin.getDescription();
+                String shortVersion = discription.getVersion();
+                if (shortVersion.length() >= 9) {
+                    shortVersion = shortVersion.substring(0, 6) + "...";
+                }
+
+                String key = "plugin." + pluginNameToKey(plugin.getName());
+                boolean visible = this.getSetting(key + ".visible", true);
+                if (visible) {
+                    String pluginName = this.getSetting(key + ".name", plugin.getName());
+                    boolean showUrl = this.getSetting(key + ".webpage.show", true);
+                    String url = this.getSetting(key + ".webpage.url", "http://www.google.com");
+                    m_pluginDetailsCache.add(" • " + ChatColor.GOLD + pluginName + " " + ChatColor.DARK_GREEN + "version " + shortVersion + (showUrl ? (ChatColor.BLUE + " " + url) : ""));
+                }    
+            } catch (Exception ex) {
+                this.logException("Failed to load settings for '" + plugin.getName() + "'.", ex);
             }
         }
         
@@ -209,7 +213,8 @@ public final class AdvancedPluginControl extends SamOatesPlugin {
      */
     @Override
     public void onDisable() {
-
+        m_pluginDetailsCache.clear();
+        m_pluginCommandHandler = null;
     }
 
     /**
@@ -234,6 +239,7 @@ public final class AdvancedPluginControl extends SamOatesPlugin {
      */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerCommandPreprocess(PlayerCommandPreprocessEvent event) {
+        
         // If a player uses /pl, then pass the command on to our plugin handler
         String[] commandParts = event.getMessage().toLowerCase().split(" ");
         if (commandParts.length >= 1) {
